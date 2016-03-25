@@ -59,16 +59,14 @@ function run(config) {
 
 function staticfile(config, req, res) {
 	var u = req.url.replace(/\?.*$/, '');
-	if (config.local.index && u === '/') {
+	if (u === '/') {
 		u = config.local.prefix + config.local.index;
 	} else if (u[u.length - 1] === '/') {
-		u += 'index.html';
+		u += config.local.index;
 	}
-	var p, v = u.indexOf(config.local.prefix);
-	if (v < 0) {
-		httpproxy(config.remote, req, res);
-	} else {
-		p = path.join(dir, config.local.root, u.substr(v + config.local.prefix.length));
+	var p, v = config.local.prefix.length;
+	if (u.substr(0, v) === config.local.prefix) {
+		p = path.join(dir, config.local.root, u.substr(v));
 		fs.stat(p, function(err, stat) {
 			if (err) {
 				httpproxy(config.remote, req, res);
@@ -94,6 +92,8 @@ function staticfile(config, req, res) {
 				}
 			}
 		});
+	} else {
+		httpproxy(config.remote, req, res);
 	}
 }
 
