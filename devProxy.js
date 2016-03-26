@@ -45,7 +45,7 @@ function run(config) {
 	}
 
 	http.createServer(function(req, res) {
-		if (req.method === 'POST' || (config.rule && req.url.match(config.rule)) || (config.local instanceof Object && config.local.prefix && req.url !== '/' && req.url.indexOf(config.local.prefix) !== 0)) {
+		if (req.method === 'POST' || (config.rule && config.rule.test(req.url))) {
 			httpproxy(config.remote, req, res);
 		} else {
 			if (config.local instanceof Array) {
