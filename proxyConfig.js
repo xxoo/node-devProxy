@@ -8,21 +8,21 @@ module.exports = {
 	rule: /?/,
 
 	// 远程服务器地址
-	remote: 'https://www.yiqihao.com/prefix/',
+	remote: 'http://yourserver.com/prefix/',
 
 	// 以下配置为本地静态文件模式
 	// 若配置为静态文件模式, 本地找不到对应文件时仍会将请求转发至远程服务器
 	// prefix: root对应的url前缀, 须为以/结束的字符串, 如果请求中不包含此前缀则会被转发至远程服务器(根路径除外)
-	//         利用这个配置可以实现将 http://www.yiqihao.com/mweb/ 映射到 root 中配置的目录
+	//         利用这个配置可以实现将 http://www.yiqihao.com/prefix/ 映射到 root 中配置的目录
 	// index: 默认文档文件名
 	local: {
-		prefix: '/mweb',
+		prefix: '/prefix/',
 		root: './',
 		index: 'index.html'
 	},
 
 	// local也可以配置为代理模式, 以便于启用php模版或其他功能
-	//local:'http://somelocalhost:8080/prefix',
+	//local:'http://somelocalhost:8080/prefix/',
 
 	// 本地监听端口
 	port: 1990

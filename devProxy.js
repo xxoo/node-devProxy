@@ -33,28 +33,39 @@ if (config instanceof Array) {
 }
 
 function run(config) {
+	var s;
 	console.log(config);
-	config.remote = parseServer(config.remote);
-
-	if (typeof config.local === 'string') {
-		config.local = parseServer(config.local);
-	} else {
-		if (!config.local.prefix) {
-			config.local.prefix = '/';
-		}
-	}
-
-	http.createServer(function(req, res) {
-		if (req.method === 'POST' || (config.rule && config.rule.test(req.url))) {
-			httpproxy(config.remote, req, res);
+	s = parseServer(config.remote);
+	if (s){
+		config.remote = s;
+		if (typeof config.local === 'string') {
+			s = parseServer(config.local);
+			if (s) {
+				config.local = s;
+			}
 		} else {
-			if (config.local instanceof Array) {
-				httpproxy(config.local, req, res);
-			} else {
-				staticfile(config, req, res);
+			if (!config.local.prefix) {
+				config.local.prefix = '/';
 			}
 		}
-	}).listen(config.port, '0.0.0.0');
+		if (typeof config.local === 'string'){
+			http.createServer(function(req, res) {
+				if (req.method === 'POST' || (config.rule && config.rule.test(req.url))) {
+					httpproxy(config.remote, req, res);
+				} else {
+					if (config.local instanceof Array) {
+						httpproxy(config.local, req, res);
+					} else {
+						staticfile(config, req, res);
+					}
+				}
+			}).listen(config.port, '0.0.0.0');
+		} else {
+			console.log('bad local server address: ' + config.local);
+		}
+	} else {
+		console.log('bad remote server address: ' + config.remote);
+	}
 }
 
 function staticfile(config, req, res) {
@@ -132,7 +143,7 @@ function httpproxy(server, req, res) {
 }
 
 function parseServer(str) {
-	var r = str.match(/^http(s?):\/\/([^\/:]+)(?::(\d+))?(\/.+)?$/);
+	var r = str.match(/^http(s?):\/\/([^\/:]+)(?::(\d+))?(\/.*[^\/])?\/$/);
 	if (r) {
 		delete r.index;
 		delete r.source;
