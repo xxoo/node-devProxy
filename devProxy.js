@@ -36,7 +36,7 @@ function run(config) {
 	var s;
 	console.log(config);
 	s = parseServer(config.remote);
-	if (s){
+	if (s) {
 		config.remote = s;
 		if (typeof config.local === 'string') {
 			s = parseServer(config.local);
@@ -48,7 +48,7 @@ function run(config) {
 				config.local.prefix = '/';
 			}
 		}
-		if (typeof config.local === 'string'){
+		if (config.local instanceof Object) {
 			http.createServer(function(req, res) {
 				if (req.method === 'POST' || (config.rule && config.rule.test(req.url))) {
 					httpproxy(config.remote, req, res);
