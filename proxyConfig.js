@@ -8,7 +8,7 @@ module.exports = {
 
 	// all POST requests and any URL that matches this expression will be forward to remote server,
 	// other requests will be responded by local serve or filesystem.
-	rule: /?/,
+	rule: /\?/,
 
 
 	// 远程服务器地址, 必须以/结束
