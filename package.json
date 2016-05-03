@@ -1,6 +1,6 @@
 {
 	"name": "devProxy",
-	"version": "0.2.1",
+	"version": "0.2.2",
 	"description": "emulate server environment from localhost by forwarding certain requests to remote server",
 	"bin": "devProxy.js",
 	"engines": {
