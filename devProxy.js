@@ -132,6 +132,9 @@ function httpproxy(server, req, res) {
 	});
 	proxy.on('error', function(err) {
 		console.log(err);
+		if (!res.headersSent) {
+			res.writeHeader(502, 'Bad Gateway');
+		}
 		res.end();
 	});
 	for (n in req.headers) {
