@@ -98,7 +98,7 @@ function staticfile(config, req, res) {
 					res.writeHeader(200, 'OK', {
 						'Content-Type': m,
 						'Content-Length': stat.size,
-						'Last-Modified': new Date(stat.mtime).toUTCString()
+						'Last-Modified': new Date(Math.max(stat.mtimeMs, stat.ctimeMs)).toUTCString()
 					});
 					f.pipe(res);
 					console.log('static: ' + req.url);
