@@ -1,33 +1,24 @@
 #!/usr/bin/env node
 
-/*	devProxy.js 0.2.1
+/*	devProxy.js 0.3.0
  *	通过将数据请求转发到远程服务器, 来在本地开发环境中模拟服务器环境, 以实现完整的网站功能
  *	脚本执行时会从当前目录载入proxyConfig.js
  */
 
 'use strict';
-var http = require('http');
-var https = require('https');
-var util = require('util');
-var path = require('path');
-var fs = require('fs');
-var dir = process.argv.length > 2 ? process.argv[2] : process.cwd();
-var config = require(path.join(dir, 'proxyConfig.js'));
-
-var mimes = {
-	'': 'application/octet-stream',
-	'html': 'text/html',
-	'js': 'text/javascript',
-	'css': 'text/css',
-	'jpg': 'image/jpeg',
-	'png': 'image/png',
-	'gif': 'image/gif',
-	'svg': 'image/svg+xml',
-	'json': 'text/json'
-};
+const http = require('http'),
+	https = require('https'),
+	util = require('util'),
+	path = require('path'),
+	fs = require('fs'),
+	ws = require('ws'),
+	mime = require('mime'),
+	dir = process.argv.length > 2 ? process.argv[2] : process.cwd(),
+	config = require(path.join(dir, 'proxyConfig.js')),
+	hds = ['host', 'origin', 'referer', 'connection', 'sec-websocket-version', 'sec-websocket-key', 'sec-websocket-extensions', 'pragma', 'cache-control', 'upgrade'];
 
 if (config instanceof Array) {
-	for (var i = 0; i < config.length; i++) {
+	for (let i = 0; i < config.length; i++) {
 		run(config[i]);
 	}
 } else {
@@ -35,7 +26,7 @@ if (config instanceof Array) {
 }
 
 function run(config) {
-	var s;
+	let s;
 	console.log(config);
 	s = parseServer(config.remote);
 	if (s) {
@@ -51,7 +42,7 @@ function run(config) {
 			}
 		}
 		if (config.local instanceof Object) {
-			http.createServer(function(req, res) {
+			let server = http.createServer(function (req, res) {
 				if (req.method === 'POST' || (config.rule && config.rule.test(req.url))) {
 					httpproxy(config.remote, req, res);
 				} else {
@@ -61,7 +52,53 @@ function run(config) {
 						staticfile(config, req, res);
 					}
 				}
-			}).listen(config.port, '0.0.0.0');
+			});
+			server.listen(config.port, '0.0.0.0');
+			new ws.Server({
+				server: server
+			}).on('error', function (err) {
+				console.error(err.stack);
+			}).on('connection', function (client, req) {
+				let remotews, pending = [], headers = {};
+				for (let n in req.headers) {
+					if (hds.indexOf(n) < 0) {
+						headers[n] = req.headers[n];
+					}
+				}
+				client.on('message', function (msg) {
+					if (!remotews) {
+						pending.push(msg);
+					} else {
+						remotews.send(msg);
+					}
+				}).on('close', function () {
+					if (remotews) {
+						remotews.close();
+					}
+				});
+				let origin = buildServerStr(config.remote, true);
+				new ws(origin.replace(/^http/, 'ws') + req.url, {
+					headers: headers,
+					origin: origin,
+					rejectUnauthorized: false
+				}).on('open', function () {
+					remotews = this;
+					while (pending.length) {
+						this.send(pending[0]);
+						pending.shift();
+					}
+				}).on('close', function () {
+					if (remotews) {
+						remotews = undefined;
+					} else {
+						client.close();
+					}
+				}).on('message', function (msg) {
+					client.send(msg);
+				}).on('error', function(err){
+					console.log(err);
+				});
+			});
 		} else {
 			console.log('bad local server address: ' + config.local);
 		}
@@ -71,16 +108,16 @@ function run(config) {
 }
 
 function staticfile(config, req, res) {
-	var u = req.url.replace(/\?.*$/, '');
+	let u = req.url.replace(/\?.*$/, '');
 	if (u === '/') {
 		u = config.local.prefix + config.local.index;
 	} else if (u[u.length - 1] === '/') {
 		u += config.local.index;
 	}
-	var p, v = config.local.prefix.length;
+	let p, v = config.local.prefix.length;
 	if (u.substr(0, v) === config.local.prefix) {
 		p = path.join(dir, config.local.root, u.substr(v));
-		fs.stat(p, function(err, stat) {
+		fs.stat(p, function (err, stat) {
 			if (err) {
 				httpproxy(config.remote, req, res);
 			} else {
@@ -90,13 +127,9 @@ function staticfile(config, req, res) {
 					});
 					res.end();
 				} else {
-					var m = mimes[path.extname(p).substr(1)];
-					if (!m) {
-						m = mimes[''];
-					}
-					var f = fs.createReadStream(p);
+					let f = fs.createReadStream(p);
 					res.writeHeader(200, 'OK', {
-						'Content-Type': m,
+						'Content-Type': mime.getType(path.extname(p).substr(1)),
 						'Content-Length': stat.size,
 						'Last-Modified': new Date(Math.max(stat.mtimeMs, stat.ctimeMs)).toUTCString()
 					});
@@ -111,26 +144,27 @@ function staticfile(config, req, res) {
 }
 
 function httpproxy(server, req, res) {
-	var n;
-	var info = {
-		host: server[1],
-		port: server[2],
-		path: server[3] + req.url,
-		method: req.method
-	};
-	var proxy = server[0].request(info, function(res2) {
-		var cookie = res2.headers['set-cookie'];
-		if (cookie instanceof Array) {
-			for (var i = 0; i < cookie.length; i++) {
-				cookie[i] = cookie[i].replace(/; domain=[^;]+/, '');
+	let n,
+		info = {
+			host: server[1],
+			port: server[2],
+			path: server[3] + req.url,
+			method: req.method,
+			rejectUnauthorized: false
+		},
+		proxy = server[0].request(info, function (res2) {
+			let cookie = res2.headers['set-cookie'];
+			if (cookie instanceof Array) {
+				for (let i = 0; i < cookie.length; i++) {
+					cookie[i] = cookie[i].replace(/; domain=[^;]+/, '');
+				}
 			}
-		}
-		delete res2.headers['access-control-allow-origin'];
-		res.writeHeader(res2.statusCode, res2.headers);
-		res2.pipe(res);
-		console.log(buildServerStr(server) + req.url);
-	});
-	proxy.on('error', function(err) {
+			delete res2.headers['access-control-allow-origin'];
+			res.writeHeader(res2.statusCode, res2.headers);
+			res2.pipe(res);
+			console.log(buildServerStr(server) + req.url);
+		});
+	proxy.on('error', function (err) {
 		console.log(err);
 		if (!res.headersSent) {
 			res.writeHeader(502, 'Bad Gateway');
@@ -138,7 +172,7 @@ function httpproxy(server, req, res) {
 		res.end();
 	});
 	for (n in req.headers) {
-		if (['host', 'origin', 'referer'].indexOf(n) < 0) {
+		if (hds.indexOf(n) < 0) {
 			//console.log(n + ': ' + req.headers[n]);
 			proxy.setHeader(n, req.headers[n]);
 		}
@@ -148,20 +182,20 @@ function httpproxy(server, req, res) {
 }
 
 function parseServer(str) {
-	var r = str.match(/^http(s?):\/\/([^\/:]+)(?::(\d+))?(\/.*[^\/])?\/$/);
+	let r = str.match(/^http(s?):\/\/([^\/:]+)(?::(\d+))?(\/.*[^\/])?\/$/);
 	if (r) {
 		delete r.index;
 		delete r.source;
 		r.shift();
 		r[2] = r[2] ? parseInt(r[2]) : r[0] ? 443 : 80;
 		r[0] = r[0] ? https : http;
-		!r[3] && (r[3] = '');
+		r[3] || (r[3] = '');
 	}
 	return r;
 }
 
-function buildServerStr(server) {
-	var s = 'http';
+function buildServerStr(server, origin) {
+	let s = 'http';
 	if (server[0] === https) {
 		s += 's';
 	}
@@ -169,6 +203,8 @@ function buildServerStr(server) {
 	if ((server[0] === https && server[2] !== 443) || (server[0] === http && server[2] !== 80)) {
 		s += ':' + server[2];
 	}
-	s += server[3];
+	if (!origin) {
+		s += server[3];
+	}
 	return s;
 }
