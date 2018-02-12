@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-/*	devProxy.js 0.3.0
+/*	devProxy.js 0.3.2
  *	通过将数据请求转发到远程服务器, 来在本地开发环境中模拟服务器环境, 以实现完整的网站功能
  *	脚本执行时会从当前目录载入proxyConfig.js
  */
