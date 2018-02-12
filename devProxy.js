@@ -59,7 +59,8 @@ function run(config) {
 			}).on('error', function (err) {
 				console.error(err.stack);
 			}).on('connection', function (client, req) {
-				let remotews, pending = [], headers = {};
+				let remotews, pending = [],
+					headers = {};
 				for (let n in req.headers) {
 					if (hds.indexOf(n) < 0) {
 						headers[n] = req.headers[n];
@@ -75,6 +76,9 @@ function run(config) {
 					if (remotews) {
 						remotews.close();
 					}
+				}).on('error', function (err) {
+					this.close();
+					console.log(err);
 				});
 				let origin = buildServerStr(config.remote, true);
 				new ws(origin.replace(/^http/, 'ws') + req.url, {
@@ -95,7 +99,8 @@ function run(config) {
 					}
 				}).on('message', function (msg) {
 					client.send(msg);
-				}).on('error', function(err){
+				}).on('error', function (err) {
+					this.close();
 					console.log(err);
 				});
 			});
