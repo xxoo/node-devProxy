@@ -8,7 +8,6 @@
 'use strict';
 const http = require('http'),
 	https = require('https'),
-	util = require('util'),
 	path = require('path'),
 	fs = require('fs'),
 	ws = require('ws'),
