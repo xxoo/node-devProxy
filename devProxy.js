@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-/*	devProxy.js 0.3.2
+/*	devProxy.js 0.3.3
  *	通过将数据请求转发到远程服务器, 来在本地开发环境中模拟服务器环境, 以实现完整的网站功能
  *	脚本执行时会从当前目录载入proxyConfig.js
  */
@@ -113,37 +113,42 @@ function run(config) {
 
 function staticfile(config, req, res) {
 	let u = req.url.replace(/\?.*$/, '');
-	if (u === '/') {
-		u = config.local.prefix + config.local.index;
-	} else if (u[u.length - 1] === '/') {
-		u += config.local.index;
-	}
-	let p, v = config.local.prefix.length;
-	if (u.substr(0, v) === config.local.prefix) {
-		p = path.join(dir, config.local.root, u.substr(v));
-		fs.stat(p, function (err, stat) {
-			if (err) {
-				httpproxy(config.remote, req, res);
-			} else {
-				if (stat.isDirectory()) {
-					res.writeHeader(302, 'Found', {
-						'Location': u + '/'
-					});
-					res.end();
-				} else {
-					let f = fs.createReadStream(p);
-					res.writeHeader(200, 'OK', {
-						'Content-Type': mime.getType(path.extname(p).substr(1)),
-						'Content-Length': stat.size,
-						'Last-Modified': new Date(Math.max(stat.mtimeMs, stat.ctimeMs)).toUTCString()
-					});
-					f.pipe(res);
-					console.log('static: ' + req.url);
-				}
-			}
+	if (u === '/' && config.local.prefix !== u && config.homeRedirect) {
+		res.writeHead(307, 'Temporary Redirect', {
+			Location: config.local.prefix + req.url.substring(1)
 		});
+		res.end();
 	} else {
-		httpproxy(config.remote, req, res);
+		if (u[u.length - 1] === '/') {
+			u += config.local.index;
+		}
+		let p, v = config.local.prefix.length;
+		if (u.substring(0, v) === config.local.prefix) {
+			p = path.join(dir, config.local.root, u.substring(v));
+			fs.stat(p, function (err, stat) {
+				if (err) {
+					httpproxy(config.remote, req, res);
+				} else {
+					if (stat.isDirectory()) {
+						res.writeHead(307, 'Temporary Redirect', {
+							Location: u + '/' + req.url.substring(u.length)
+						});
+						res.end();
+					} else {
+						let f = fs.createReadStream(p);
+						res.writeHead(200, 'OK', {
+							'Content-Type': mime.getType(path.extname(p).substring(1)),
+							'Content-Length': stat.size,
+							'Last-Modified': new Date(Math.max(stat.mtimeMs, stat.ctimeMs)).toUTCString()
+						});
+						f.pipe(res);
+						console.log('static: ' + req.url);
+					}
+				}
+			});
+		} else {
+			httpproxy(config.remote, req, res);
+		}
 	}
 }
 
@@ -164,14 +169,14 @@ function httpproxy(server, req, res) {
 				}
 			}
 			delete res2.headers['access-control-allow-origin'];
-			res.writeHeader(res2.statusCode, res2.headers);
+			res.writeHead(res2.statusCode, res2.headers);
 			res2.pipe(res);
 			console.log(buildServerStr(server) + req.url);
 		});
 	proxy.on('error', function (err) {
 		console.log(err);
 		if (!res.headersSent) {
-			res.writeHeader(502, 'Bad Gateway');
+			res.writeHead(502, 'Bad Gateway');
 		}
 		res.end();
 	});
